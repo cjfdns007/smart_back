@@ -5,6 +5,7 @@ import { ResultSetHeader } from 'mysql2/promise';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
+import { userType } from '../src/const';
 
 dotenv.config({ path: '.env' });
 
@@ -30,20 +31,31 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
     // 연결 되었을 때
     if (connection) {
         try {
+            // 로그인 확인
             let query = 'select ID, elderly from user.logInfo where email = ? and password = ?';
             let [result] = await connection.query(query, [email, password]);
             let row = JSON.parse(JSON.stringify(result))[0];
             let { ID, elderly } = row;
+
+            // 이름 가져오기
+            let nameQuery = 'select name from user.' + userType[elderly] + ' where ID = ?';
+            [result] = await connection.query(nameQuery, [ID]);
+            row = JSON.parse(JSON.stringify(result))[0];
+            let { name } = row;
+
+            // redis에 token에 대한 ID와 elderly 정보 저장
             let value = JSON.stringify({ ID, elderly });
             const secret = '' + process.env.JWT_SECRET;
             const token = jwt.sign({ ID: ID }, secret);
             const b = await redisClient.set(token, value);
             redisClient.expire(token, 7200);
             console.log(b);
+
+            // redis에 ID에 대한 FCM 정보 저장
             const b2 = await redisClient.set(ID, FCM);
-            redisClient.expire(ID, 7200);
-            res.status(200).send({ accessToken: token, expire: 7200, elderly: elderly });
+            res.status(200).send({ accessToken: token, expire: 7200, elderly: elderly, name: name });
         } catch (e) {
+            console.log(e);
             res.status(400).send('No such ID or password');
         } finally {
             connection.release();
@@ -158,8 +170,5 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
 };
 
 export const test = async (req: Request, res: Response, next: NextFunction) => {
-    const { ID, elderly } = await getIDandKind(req);
-    console.log(ID);
-    console.log(elderly);
-    res.status(200).send('OK');
+    console.log(encrypt('test'));
 };

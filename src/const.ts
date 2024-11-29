@@ -17,3 +17,5 @@ export const sensorValueName: { [key: string]: string } = {
     outdoor: 'outdoor',
     walking: 'walk',
 };
+
+export const userType = ['caregiver', 'elderly'];
