@@ -55,7 +55,7 @@ export const sensorRegister = async (req: Request, res: Response, next: NextFunc
         connection.commit();
         res.status(200).send('OK');
     } catch (e) {
-        res.status(400).send('No such ID or password');
+        res.status(400).send('error');
     } finally {
         connection.release();
     }
@@ -219,6 +219,43 @@ export const sensorGetData = async (
         let body: { [key: string]: any[] } = {};
         body['time'] = times;
         body[`${sensorValueName[type]}`] = values;
+        res.status(200).send(body);
+    } catch (e) {
+        console.log(e);
+        res.status(400).send('failed');
+    } finally {
+        connection.release();
+    }
+};
+
+export const sensorAll = async (req: Request, res: Response, next: NextFunction, elderlyID: number) => {
+    // db 커넥션
+    let connection = await getConnection();
+    if (!connection) {
+        res.status(500).send('DB connection error');
+        return;
+    }
+    //커넥션 이후 sensor 정보 뽑아오기
+    try {
+        let body: { [key: string]: any[] } = {};
+        for (const type of sensorTypes) {
+            let query = `select time, ${sensorValueName[type]} from data.${type} where time = (select max(time) from data.${type} where elderlyID = ?) and elderlyID = ?`;
+            let [result] = await connection.query(query, [elderlyID, elderlyID]);
+            let row = JSON.parse(JSON.stringify(result))[0];
+            if (!row) {
+                body[type] = ['', ''];
+                continue;
+            }
+            let time = new Date(row.time);
+            let timeString = `${time.getFullYear()}-${('0' + (time.getMonth() + 1)).slice(-2)}-${(
+                '0' + time.getDate()
+            ).slice(-2)} `;
+            timeString += `${('0' + time.getHours()).slice(-2)}:${('0' + time.getMinutes()).slice(-2)}:${(
+                '0' + time.getSeconds()
+            ).slice(-2)}`;
+            let value = row[`${sensorValueName[type]}`];
+            body[type] = [timeString, value];
+        }
         res.status(200).send(body);
     } catch (e) {
         console.log(e);

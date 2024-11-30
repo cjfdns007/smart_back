@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { getIDandKind, verifyToken } from '../auth/auth';
 import { getConnection } from '../mysql/mysql';
-import { sensorGetData } from './sensor';
+import { sensorAll, sensorGetData } from './sensor';
 import { sensorTypes } from './const';
 
 export const elderlyRegister = async (req: Request, res: Response, next: NextFunction) => {
@@ -244,4 +244,19 @@ export const sensorData = async (req: Request, res: Response, next: NextFunction
         return;
     }
     await sensorGetData(req, res, next, type, elderlyID);
+};
+
+export const sensorAllData = async (req: Request, res: Response, next: NextFunction) => {
+    const { elderlyID } = req.body;
+    if (!elderlyID) {
+        res.status(400).send('No elderly ID');
+        return;
+    }
+    const { ID } = await getIDandKind(req);
+    const check = await elderlyCheck(ID, elderlyID);
+    if (!check) {
+        res.status(400).send("You don't have permission to such elderly");
+        return;
+    }
+    await sensorAll(req, res, next, elderlyID);
 };
