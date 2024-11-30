@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { getIDandKind, verifyToken } from '../auth/auth';
 import { getConnection } from '../mysql/mysql';
+import { sensorGetData } from './sensor';
+import { sensorTypes } from './const';
 
 export const elderlyRegister = async (req: Request, res: Response, next: NextFunction) => {
     // 토큰 체크
@@ -29,7 +31,7 @@ export const elderlyRegister = async (req: Request, res: Response, next: NextFun
     }
     try {
         // elderly ID 가져오기
-        const query = 'select ID from user.elderly where email = ?';
+        const query = 'select ID, Caregiver from user.elderly where email = ?';
         let [result] = await connection.query(query, [email]);
         let row = JSON.parse(JSON.stringify(result))[0];
         if (!row) {
@@ -37,13 +39,20 @@ export const elderlyRegister = async (req: Request, res: Response, next: NextFun
             return;
         }
         let elderlyID = row['ID'];
-
+        let Caregiver = row['Caregiver'];
+        if (Caregiver) {
+            res.status(400).send('The elderly already has a caregiver');
+            return;
+        }
+        const query2 = 'update user.elderly set Caregiver = ? where ID = ?';
+        await connection.query(query2, [ID, elderlyID]);
         // caregiver의 elderly가 꽉 찼는지 확인
         const selectQuery = 'select Elderly, Elderly2, Elderly3, Elderly4 from user.caregiver where ID = ?';
         [result] = await connection.query(selectQuery, [ID]);
         row = JSON.parse(JSON.stringify(result))[0];
         let { Elderly, Elderly2, Elderly3, Elderly4 } = row;
 
+        // 이미 등록되어있는 elderly인 경우 처리
         if (Elderly == elderlyID || Elderly2 == elderlyID || Elderly3 == elderlyID || Elderly4 == elderlyID) {
             res.status(400).send('Already exists');
             return;
@@ -69,9 +78,11 @@ export const elderlyRegister = async (req: Request, res: Response, next: NextFun
             res.status(400).send('Elderly number cannot be over 4');
             return;
         }
+
         res.status(200).send('OK');
     } catch (e) {
         console.log(e);
+        await connection.rollback();
         res.status(400).send('error');
     } finally {
         connection.release();
@@ -135,4 +146,102 @@ export const elderlyInfo = async (req: Request, res: Response, next: NextFunctio
     } finally {
         connection.release();
     }
+};
+
+export const elderlyRemove = async (req: Request, res: Response, next: NextFunction) => {
+    // 토큰 체크
+    const tokenCheck = await verifyToken(req);
+    if (!tokenCheck) {
+        res.status(400).send('Invalid Token');
+        return;
+    }
+    // ID, elderly 정보 가져오기
+    const { ID, elderly } = await getIDandKind(req);
+    if (elderly) {
+        res.status(400).send('Elderly cannot use this function');
+        return;
+    }
+    // 이메일 정보 체크
+    const { elderlyID } = req.body;
+    if (!elderlyID) {
+        res.status(400).send('Invalid body: No elderlyID');
+        return;
+    }
+    // DB 연결
+    let connection = await getConnection();
+    if (!connection) {
+        res.status(500).send('DB connection error');
+        return;
+    }
+    try {
+        const query = 'select Elderly, Elderly2, Elderly3, Elderly4 from user.caregiver where ID = ?';
+        const [result] = await connection.query(query, [ID]);
+        const row = JSON.parse(JSON.stringify(result))[0];
+        const { Elderly, Elderly2, Elderly3, Elderly4 } = row;
+        if (Elderly == elderlyID) {
+            const updateQuery = 'update user.caregiver set Elderly = NULL where ID = ?';
+            await connection.query(updateQuery, [ID]);
+        } else if (Elderly2 == elderlyID) {
+            const updateQuery = 'update user.caregiver set Elderly2 = NULL where ID = ?';
+            await connection.query(updateQuery, [ID]);
+        } else if (Elderly3 == elderlyID) {
+            const updateQuery = 'update user.caregiver set Elderly3 = NULL where ID = ?';
+            await connection.query(updateQuery, [ID]);
+        } else if (Elderly4 == elderlyID) {
+            const updateQuery = 'update user.caregiver set Elderly4 = NULL where ID = ?';
+            await connection.query(updateQuery, [ID]);
+        } else {
+            res.status(400).send('No such elderly for caregiver');
+            return;
+        }
+        res.status(200).send('OK');
+    } catch (e) {
+        console.log(e);
+        res.status(400).send('error occured');
+    } finally {
+        connection.release();
+    }
+};
+
+const elderlyCheck = async (ID: number, elderlyID: number) => {
+    // DB 연결
+    let connection = await getConnection();
+    if (!connection) {
+        return false;
+    }
+    try {
+        const query = 'select Elderly, Elderly2, Elderly3, Elderly4 from user.caregiver where ID = ?';
+        const [result] = await connection.query(query, [ID]);
+        const row = JSON.parse(JSON.stringify(result))[0];
+        const { Elderly, Elderly2, Elderly3, Elderly4 } = row;
+        if (Elderly == elderlyID || Elderly2 == elderlyID || Elderly3 == elderlyID || Elderly4 == elderlyID) {
+            return true;
+        } else {
+            return false;
+        }
+    } catch (e) {
+        return false;
+    } finally {
+        connection.release();
+    }
+};
+
+export const sensorData = async (req: Request, res: Response, next: NextFunction) => {
+    const { elderlyID, type } = req.body;
+    if (!elderlyID || !type) {
+        res.status(400).send('No elderly ID or type');
+        return;
+    }
+    // sensor type 체크
+    if (type == null || !sensorTypes.includes(type)) {
+        res.status(400).send('Invalid Type');
+        return;
+    }
+    const { ID } = await getIDandKind(req);
+    const check = await elderlyCheck(ID, elderlyID);
+    if (!check) {
+        res.status(400).send("You don't have permission to such elderly");
+        return;
+    }
+    await sensorGetData(req, res, next, type, elderlyID);
 };

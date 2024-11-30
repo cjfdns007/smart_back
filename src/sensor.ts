@@ -61,6 +61,46 @@ export const sensorRegister = async (req: Request, res: Response, next: NextFunc
     }
 };
 
+export const sensorRemove = async (req: Request, res: Response, next: NextFunction) => {
+    const tokenCheck = await verifyToken(req);
+    if (!tokenCheck) {
+        res.status(400).send('Invalid Token');
+        return;
+    }
+    const { ID, elderly } = await getIDandKind(req);
+    if (!elderly) {
+        res.status(400).send('elderly only can use this function');
+        return;
+    }
+    const { sensorID } = req.body;
+    if (!sensorID) {
+        res.status(400).send('No sensorID');
+        return;
+    }
+    const connection = await getConnection();
+    if (!connection) {
+        res.status(500).send('DB connection error');
+        return;
+    }
+    try {
+        const query = 'select * from data.sensor where sensorID = ? and elderlyID = ?';
+        const [result] = await connection.query(query, [sensorID, ID]);
+        const row = JSON.parse(JSON.stringify(result))[0];
+        if (!row) {
+            res.status(400).send('No such sensorID for elderly');
+            return;
+        }
+        const deleteQuery = 'delete from data.sensor where sensorID = ? and elderlyID = ?';
+        await connection.query(deleteQuery, [sensorID, ID]);
+        res.status(200).send('OK');
+    } catch (e) {
+        console.log(e);
+        res.status(400).send('error');
+    } finally {
+        connection.release();
+    }
+};
+
 export const sensorInfo = async (req: Request, res: Response, next: NextFunction) => {
     let userID;
     // 토큰 확인 및 user ID와 elderly 체크
@@ -138,16 +178,13 @@ export const sensorData = async (req: Request, res: Response, next: NextFunction
     }
 };
 
-const sensorGetData = async (req: Request, res: Response, next: NextFunction, type: string) => {
-    let elderlyID;
-    try {
-        let { ID, elderly } = await getIDandKind(req);
-        elderlyID = ID;
-    } catch (e) {
-        console.log(e);
-        res.status(400).send('token error');
-        return;
-    }
+export const sensorGetData = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+    type: string,
+    elderlyID: number
+) => {
     // db 커넥션
     let connection = await getConnection();
     if (!connection) {
@@ -189,20 +226,4 @@ const sensorGetData = async (req: Request, res: Response, next: NextFunction, ty
     } finally {
         connection.release();
     }
-};
-
-export const outdoor = async (req: Request, res: Response, next: NextFunction) => {
-    await sensorGetData(req, res, next, 'outdoor');
-};
-
-export const heartRate = async (req: Request, res: Response, next: NextFunction) => {
-    await sensorGetData(req, res, next, 'heartRate');
-};
-
-export const medicine = async (req: Request, res: Response, next: NextFunction) => {
-    await sensorGetData(req, res, next, 'medicine');
-};
-
-export const walking = async (req: Request, res: Response, next: NextFunction) => {
-    await sensorGetData(req, res, next, 'walking');
 };
