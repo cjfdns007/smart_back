@@ -19,3 +19,5 @@ export const sensorValueName: { [key: string]: string } = {
 };
 
 export const userType = ['caregiver', 'elderly'];
+
+export const heartRateThres = 60;

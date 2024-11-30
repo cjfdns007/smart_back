@@ -153,7 +153,3 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
         connection.release();
     }
 };
-
-export const test = async (req: Request, res: Response, next: NextFunction) => {
-    console.log(encrypt('test'));
-};
