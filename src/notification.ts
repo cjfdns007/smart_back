@@ -13,15 +13,13 @@ initializeApp({
     credential: applicationDefault(),
 });
 
-export const notify = async (req: Request, res: Response, next: NextFunction, message: Message) => {
+export const notify = async (message: Message) => {
     getMessaging()
         .send(message)
         .then((response) => {
             console.log('Successfully sent message:', response);
-            res.status(200).send('OK');
         })
         .catch((error) => {
             console.log('Error sending message:', error);
-            res.status(400).send('ERROR');
         });
 };

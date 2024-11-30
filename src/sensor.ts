@@ -2,8 +2,9 @@ import redisClient from '../redis/redis';
 import { getConnection } from '../mysql/mysql';
 import { Request, Response, NextFunction } from 'express';
 import { verifyToken, getIDandKind } from '../auth/auth';
-import { sensorDateRange, sensorQuery, sensorTypes, sensorValueName } from './const';
+import { heartRateThres, sensorDateRange, sensorQuery, sensorTypes, sensorValueName } from './const';
 import { ResultSetHeader } from 'mysql2/promise';
+import { notify } from './notification';
 
 export const sensorRegister = async (req: Request, res: Response, next: NextFunction) => {
     // sensor type 체크
@@ -168,6 +169,47 @@ export const sensorData = async (req: Request, res: Response, next: NextFunction
             let insertQuery = 'insert into data.' + sensorQuery[type] + ' values(?, ?, ?)';
             await connection.query(insertQuery, [elderlyID, time, value]);
             connection.commit();
+        }
+        let notification;
+        if (type == 'heartRate') {
+            if (value <= heartRateThres) {
+                notification = {
+                    title: '낮은 심박수',
+                    body: '심박수: ' + value + '\n시간: ' + time,
+                };
+            }
+        } else if (type == 'outdoor') {
+            notification = {
+                title: '외출알림',
+                body: '시간: ' + time,
+            };
+        }
+        if (notification) {
+            try {
+                const elderlyFCM = await redisClient.get(elderlyID);
+                if (elderlyFCM) {
+                    const elderlyMessage = { notification: notification, token: elderlyFCM };
+                    await notify(elderlyMessage);
+                }
+                let selectQuery = 'select Caregiver from user.elderly where ID = ?';
+                let [result] = await connection.query(query, [elderlyID]);
+                let row = JSON.parse(JSON.stringify(result))[0];
+                if (!row) {
+                    const caregiverID = row['Caregiver'];
+                    if (caregiverID) {
+                        const caregiverFCM = await redisClient.get(caregiverID);
+                        if (caregiverFCM) {
+                            const caregiverMessage = { notification: notification, token: caregiverFCM };
+                            await notify(caregiverMessage);
+                        }
+                    }
+                }
+            } catch (e) {
+                res.status(200).send('Data stored but notification failed');
+                return;
+            } finally {
+                connection.release();
+            }
         }
         res.status(200).send('OK');
     } catch (e) {
