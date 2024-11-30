@@ -3,6 +3,7 @@ import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import authRouter from './router/authrouter';
 import sensorRouter from './router/sensorrouter';
+import caregiverRouter from './router/caregiverrouter';
 
 dotenv.config({ path: '.env' });
 
@@ -11,6 +12,7 @@ app.use(express.json());
 app.use(cookieParser());
 app.use('/auth', authRouter);
 app.use('/sensor', sensorRouter);
+app.use('/caregiver', caregiverRouter);
 
 app.get('/', (req: Request, res: Response) => {
     res.send('server');

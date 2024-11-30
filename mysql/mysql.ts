@@ -10,6 +10,14 @@ const pool = mysql.createPool({
     connectionLimit: 4,
 });
 
-export const getDatabase = () => {
-    return pool.promise().getConnection();
+export const getConnection = async () => {
+    // db연결
+    try {
+        let connection = await pool.promise().getConnection();
+        await connection.beginTransaction();
+        return connection;
+    } catch (e) {
+        console.log(e);
+        return null;
+    }
 };

@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import redisClient from '../redis/redis';
-import { getDatabase } from '../mysql/mysql';
+import { getConnection } from '../mysql/mysql';
 import { ResultSetHeader } from 'mysql2/promise';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
@@ -18,48 +18,40 @@ const encrypt = (word: string) => {
 export const login = async (req: Request, res: Response, next: NextFunction) => {
     let { email, password, FCM } = req.body;
     password = encrypt(password);
-    // db연결
-    let connection;
-    try {
-        connection = await getDatabase();
-        await connection.beginTransaction();
-    } catch (e) {
-        console.log(e);
+    let connection = await getConnection();
+    if (!connection) {
         res.status(500).send('DB connection error');
         return;
     }
-    // 연결 되었을 때
-    if (connection) {
-        try {
-            // 로그인 확인
-            let query = 'select ID, elderly from user.logInfo where email = ? and password = ?';
-            let [result] = await connection.query(query, [email, password]);
-            let row = JSON.parse(JSON.stringify(result))[0];
-            let { ID, elderly } = row;
+    try {
+        // 로그인 확인
+        let query = 'select ID, elderly from user.logInfo where email = ? and password = ?';
+        let [result] = await connection.query(query, [email, password]);
+        let row = JSON.parse(JSON.stringify(result))[0];
+        let { ID, elderly } = row;
 
-            // 이름 가져오기
-            let nameQuery = 'select name from user.' + userType[elderly] + ' where ID = ?';
-            [result] = await connection.query(nameQuery, [ID]);
-            row = JSON.parse(JSON.stringify(result))[0];
-            let { name } = row;
+        // 이름 가져오기
+        let nameQuery = 'select name from user.' + userType[elderly] + ' where ID = ?';
+        [result] = await connection.query(nameQuery, [ID]);
+        row = JSON.parse(JSON.stringify(result))[0];
+        let { name } = row;
 
-            // redis에 token에 대한 ID와 elderly 정보 저장
-            let value = JSON.stringify({ ID, elderly });
-            const secret = '' + process.env.JWT_SECRET;
-            const token = jwt.sign({ ID: ID }, secret);
-            const b = await redisClient.set(token, value);
-            redisClient.expire(token, 7200);
-            console.log(b);
+        // redis에 token에 대한 ID와 elderly 정보 저장
+        let value = JSON.stringify({ ID, elderly });
+        const secret = '' + process.env.JWT_SECRET;
+        const token = jwt.sign({ ID: ID }, secret);
+        const b = await redisClient.set(token, value);
+        redisClient.expire(token, 7200);
+        console.log(b);
 
-            // redis에 ID에 대한 FCM 정보 저장
-            const b2 = await redisClient.set(ID, FCM);
-            res.status(200).send({ accessToken: token, expire: 7200, elderly: elderly, name: name });
-        } catch (e) {
-            console.log(e);
-            res.status(400).send('No such ID or password');
-        } finally {
-            connection.release();
-        }
+        // redis에 ID에 대한 FCM 정보 저장
+        const b2 = await redisClient.set(ID, FCM);
+        res.status(200).send({ accessToken: token, expire: 7200, elderly: elderly, name: name });
+    } catch (e) {
+        console.log(e);
+        res.status(400).send('No such ID or password');
+    } finally {
+        connection.release();
     }
 };
 
@@ -129,43 +121,36 @@ export const getFCM = async (req: Request) => {
 export const register = async (req: Request, res: Response, next: NextFunction) => {
     let { name, email, password, phone, elderly } = req.body;
     password = encrypt(password);
-    console.log(password);
     // db 연결
-    let connection;
-    try {
-        connection = await getDatabase();
-        await connection.beginTransaction();
-    } catch (e) {
-        console.log(e);
+    let connection = await getConnection();
+    if (!connection) {
         res.status(500).send('DB connection error');
         return;
     }
-    // 연결 되었을 때
-    if (connection) {
-        try {
-            let insertQuery: string = 'insert into ';
-            // elderly인지 caregiver인지 체크 (1 or 0)
-            if (elderly) {
-                insertQuery += 'user.elderly';
-            } else {
-                insertQuery += 'user.caregiver';
-            }
-            insertQuery += '(name, email, phone) values (?, ?, ?)';
-            let [results, _] = await connection.query<ResultSetHeader>(insertQuery, [name, email, phone]);
-            let insertId = results.insertId;
 
-            // login 관련 정보 저장
-            let insertQuery2: string = 'insert into user.logInfo(email, password, ID, elderly) values (?, ?, ?, ?)';
-            await connection.query<ResultSetHeader>(insertQuery2, [email, password, insertId, elderly]);
-            connection.commit();
-            res.status(200).end('OK');
-        } catch (e) {
-            console.log(e);
-            res.status(400).end('error');
-            connection.rollback();
-        } finally {
-            connection.release();
+    try {
+        let insertQuery: string = 'insert into ';
+        // elderly인지 caregiver인지 체크 (1 or 0)
+        if (elderly) {
+            insertQuery += 'user.elderly';
+        } else {
+            insertQuery += 'user.caregiver';
         }
+        insertQuery += '(name, email, phone) values (?, ?, ?)';
+        let [results, _] = await connection.query<ResultSetHeader>(insertQuery, [name, email, phone]);
+        let insertId = results.insertId;
+
+        // login 관련 정보 저장
+        let insertQuery2: string = 'insert into user.logInfo(email, password, ID, elderly) values (?, ?, ?, ?)';
+        await connection.query<ResultSetHeader>(insertQuery2, [email, password, insertId, elderly]);
+        connection.commit();
+        res.status(200).end('OK');
+    } catch (e) {
+        console.log(e);
+        res.status(400).end('error');
+        connection.rollback();
+    } finally {
+        connection.release();
     }
 };
 
