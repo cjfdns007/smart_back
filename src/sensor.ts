@@ -170,43 +170,50 @@ export const sensorData = async (req: Request, res: Response, next: NextFunction
             await connection.query(insertQuery, [elderlyID, time, value]);
             connection.commit();
         }
-        let notification;
+        let notification: any;
+        let data: any;
         if (type == 'heartRate') {
             if (value <= heartRateThres) {
                 notification = {
                     title: '낮은 심박수',
                     body: '심박수: ' + value + '\n시간: ' + time,
                 };
+                data = { type: 'low_heart_rate', value: '' + value, time: time };
             }
         } else if (type == 'outdoor') {
             notification = {
                 title: '외출알림',
                 body: '시간: ' + time,
             };
+            data = { type: 'outdoor_alert', time: time };
         }
         if (notification) {
             try {
                 const elderlyFCM = await redisClient.get(elderlyID);
-                if (elderlyFCM) {
-                    const elderlyMessage = { notification: notification, token: elderlyFCM };
-                    await notify(elderlyMessage);
-                }
-                let selectQuery = 'select Caregiver, phone from user.elderly where ID = ?';
+                let selectQuery = 'select Caregiver, phone, name from user.elderly where ID = ?';
                 let [result] = await connection.query(selectQuery, [elderlyID]);
                 let row = JSON.parse(JSON.stringify(result))[0];
-                if (!row) {
+                if (row) {
                     const caregiverID = row['Caregiver'];
-                    const phone = row['phone'];
+                    const name: string = row['name'];
+                    const phone: string = row['phone'];
+                    if (elderlyFCM) {
+                        const elderlyMessage = { notification: notification, token: elderlyFCM, data: data };
+                        await notify(elderlyMessage);
+                    }
                     if (caregiverID) {
-                        notification['body'] += '\n전화번호: ' + phone;
+                        notification['body'] = '이름: ' + name + '\n' + notification['body'] + '\n전화번호: ' + phone;
+                        data['personName'] = name;
+                        data['phone'] = phone;
                         const caregiverFCM = await redisClient.get(caregiverID);
                         if (caregiverFCM) {
-                            const caregiverMessage = { notification: notification, token: caregiverFCM };
+                            const caregiverMessage = { notification: notification, token: caregiverFCM, data: data };
                             await notify(caregiverMessage);
                         }
                     }
                 }
             } catch (e) {
+                console.log(e);
                 res.status(200).send('Data stored but notification failed');
                 return;
             } finally {
