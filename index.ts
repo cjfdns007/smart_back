@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import authRouter from './router/authrouter';
 import sensorRouter from './router/sensorrouter';
 import caregiverRouter from './router/caregiverrouter';
+import elderlyRouter from './router/elderlyrouter';
 
 dotenv.config({ path: '.env' });
 
@@ -13,6 +14,7 @@ app.use(cookieParser());
 app.use('/auth', authRouter);
 app.use('/sensor', sensorRouter);
 app.use('/caregiver', caregiverRouter);
+app.use('/elderly', elderlyRouter);
 
 app.get('/', (req: Request, res: Response) => {
     res.send('server');

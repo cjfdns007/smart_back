@@ -191,12 +191,14 @@ export const sensorData = async (req: Request, res: Response, next: NextFunction
                     const elderlyMessage = { notification: notification, token: elderlyFCM };
                     await notify(elderlyMessage);
                 }
-                let selectQuery = 'select Caregiver from user.elderly where ID = ?';
-                let [result] = await connection.query(query, [elderlyID]);
+                let selectQuery = 'select Caregiver, phone from user.elderly where ID = ?';
+                let [result] = await connection.query(selectQuery, [elderlyID]);
                 let row = JSON.parse(JSON.stringify(result))[0];
                 if (!row) {
                     const caregiverID = row['Caregiver'];
+                    const phone = row['phone'];
                     if (caregiverID) {
+                        notification['body'] += '\n전화번호: ' + phone;
                         const caregiverFCM = await redisClient.get(caregiverID);
                         if (caregiverFCM) {
                             const caregiverMessage = { notification: notification, token: caregiverFCM };

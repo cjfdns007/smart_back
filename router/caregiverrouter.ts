@@ -6,7 +6,7 @@ const router = express.Router();
 router.get('/elderlyInfo', elderlyInfo);
 router.post('/elderlyRegister', elderlyRegister);
 router.post('/elderlyRemove', elderlyRemove);
-router.get('/sensorData', sensorData);
-router.get('/sensorAll', sensorAllData);
+router.post('/sensorData', sensorData);
+router.post('/sensorAllData', sensorAllData);
 
 export default router;

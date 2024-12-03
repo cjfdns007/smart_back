@@ -40,12 +40,11 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
         let value = JSON.stringify({ ID, elderly });
         const secret = '' + process.env.JWT_SECRET;
         const token = jwt.sign({ ID: ID }, secret);
-        const b = await redisClient.set(token, value);
+        await redisClient.set(token, value);
         redisClient.expire(token, 7200);
-        console.log(b);
 
         // redis에 ID에 대한 FCM 정보 저장
-        const b2 = await redisClient.set(ID, FCM);
+        await redisClient.set(ID, FCM);
         res.status(200).send({ accessToken: token, expire: 7200, elderly: elderly, name: name });
     } catch (e) {
         console.log(e);
@@ -66,10 +65,8 @@ export const logout = async (req: Request, res: Response, next: NextFunction) =>
     const { authorization } = req.headers;
     const [tokenType, token] = authorization!.split(' ');
     const result = await redisClient.del(token);
-    console.log(result);
     const { ID } = await getIDandKind(req);
     const result2 = await redisClient.del(ID);
-    console.log(result2);
     if (result && result2) {
         res.status(200).send('OK');
         return;
