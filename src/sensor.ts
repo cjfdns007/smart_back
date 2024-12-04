@@ -244,7 +244,7 @@ export const sensorGetData = async (
     }
     //커넥션 이후 sensor 정보 뽑아오기
     try {
-        let query = `select time, ${sensorValueName[type]} from data.${type} where elderlyID = ? and time >= ?`;
+        let query = `select time, ${sensorValueName[type]} from data.${type} where elderlyID = ? and time >= ? order by time desc`;
         let t = new Date();
         t.setSeconds(t.getSeconds() - sensorDateRange[type]);
         let timeString = `${t.getFullYear()}-${('0' + (t.getMonth() + 1)).slice(-2)}-${('0' + t.getDate()).slice(-2)} `;
@@ -264,6 +264,12 @@ export const sensorGetData = async (
                 '0' + time.getSeconds()
             ).slice(-2)}`;
             let value = rows[i][`${sensorValueName[type]}`];
+            if (i != 0 && type == 'walking') {
+                let date = timeString.slice(0, 10);
+                if (date == times[times.length - 1].slice(0, 10)) {
+                    continue;
+                }
+            }
             times.push(timeString);
             values.push(value);
         }
