@@ -93,6 +93,7 @@ export const sensorRemove = async (req: Request, res: Response, next: NextFuncti
         }
         const deleteQuery = 'delete from data.sensor where sensorID = ? and elderlyID = ?';
         await connection.query(deleteQuery, [sensorID, ID]);
+        await connection.commit();
         res.status(200).send('OK');
     } catch (e) {
         console.log(e);

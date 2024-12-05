@@ -61,24 +61,20 @@ export const elderlyRegister = async (req: Request, res: Response, next: NextFun
         if (!Elderly) {
             const insertQuery = 'update user.caregiver set Elderly = ? where ID = ?';
             await connection.query(insertQuery, [elderlyID, ID]);
-            connection.commit();
         } else if (!Elderly2) {
             const insertQuery = 'update user.caregiver set Elderly2 = ? where ID = ?';
             await connection.query(insertQuery, [elderlyID, ID]);
-            connection.commit();
         } else if (!Elderly3) {
             const insertQuery = 'update user.caregiver set Elderly3 = ? where ID = ?';
             await connection.query(insertQuery, [elderlyID, ID]);
-            connection.commit();
         } else if (!Elderly4) {
             const insertQuery = 'update user.caregiver set Elderly4 = ? where ID = ?';
             await connection.query(insertQuery, [elderlyID, ID]);
-            connection.commit();
         } else {
             res.status(400).send('Elderly number cannot be over 4');
             return;
         }
-
+        await connection.commit();
         res.status(200).send('OK');
     } catch (e) {
         console.log(e);
@@ -194,9 +190,13 @@ export const elderlyRemove = async (req: Request, res: Response, next: NextFunct
             res.status(400).send('No such elderly for caregiver');
             return;
         }
+        const updateQuery = 'update user.elderly set Caregiver = NULL where ID = ?';
+        await connection.query(updateQuery, [elderlyID]);
+        await connection.commit();
         res.status(200).send('OK');
     } catch (e) {
         console.log(e);
+        await connection.rollback();
         res.status(400).send('error occured');
     } finally {
         connection.release();
