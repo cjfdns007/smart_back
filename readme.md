@@ -10,8 +10,9 @@ mysql
 Firebase Cloud Messaging
 
 ### 수행업무
-* API 설계
-* DB 설계
+API 설계
+DB 설계
+
 * 인증관련
 * 회원가입
   - 회원가입시 입력한 비밀번호를 암호화하여 DB에 저장하였습니다.
