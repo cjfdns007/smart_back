@@ -3,6 +3,8 @@
 여러 센서들로 부터 받은 데이터(심박수, 약통 열림, 외출 여부, 걸음수)들을 종합합니다.
 모은 데이터들을 보호자에게 가시화하여 제공하며, 응급상황이 발생하면 알림을 통해 정보를 전달합니다.
 
+노션:https://2nnnno.notion.site/CS350-Team-Project-e4cfc4b5acfb45178f04d5b507d272f2
+
 ## 기술 스택
 node.js + express + typescript
 Redis
